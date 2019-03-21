@@ -1,0 +1,20 @@
+#########################################################################
+########### Anthony Maylath Solutions for HPC HW3 #######################
+#########################################################################
+#########################################################################
+
+For all questions:
+
+I ran my code on a Dual Core Intel i5 with 2.4 GHz processor speed and 8 GB
+of RAM.
+
+#########################################################################
+
+Question 1:
+
+I optimize sin4_intrin() for both AVX and SSE2. Since my machine is SSE, I did not test the AVX portion.
+
+I add sin Taylor series through to O(x^11). The error for sin4_intrin() is exactly the same as sin4_tayor(). The timing for sin4_intrin() is within 1/10th of a second of sin4_tayor().
+
+#########################################################################
+
