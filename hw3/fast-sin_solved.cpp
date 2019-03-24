@@ -15,6 +15,8 @@
 #endif
 
 
+
+
 // coefficients in the Taylor series expansion of sin(x)
 static constexpr double c3  = -1/(((double)2)*3);
 static constexpr double c5  =  1/(((double)2)*3*4*5);
@@ -22,6 +24,11 @@ static constexpr double c7  = -1/(((double)2)*3*4*5*6*7);
 static constexpr double c9  =  1/(((double)2)*3*4*5*6*7*8*9);
 static constexpr double c11 = -1/(((double)2)*3*4*5*6*7*8*9*10*11);
 // sin(x) = x + c3*x^3 + c5*x^5 + c7*x^7 + x9*x^9 + c11*x^11
+
+static constexpr double twoPI = 2.0*M_PI; //Save calculation on 2pi
+static constexpr double pi4 = M_PI/4;
+static constexpr double pi34 = 3*M_PI/4;
+static constexpr double pi54 = 5*M_PI/4;
 
 void sin4_reference(double* sinx, const double* x) {
   for (long i = 0; i < 4; i++) sinx[i] = sin(x[i]);
@@ -44,6 +51,58 @@ void sin4_taylor(double* sinx, const double* x) {
     s += x9  * c9;
     s += x11 * c11;
     sinx[i] = s;
+  }
+}
+
+//Anthony Maylath addition for Extra credit
+void sin4_taylorEC(double* sinx, const double* x) {
+  int flag =1;
+  double theta, theta_abs;
+  for (int i = 0; i < 4; i++) {
+    theta = x[i]; theta_abs = abs(theta);
+    if(theta < 0){flag = -1;} //Determine if positive or negitive
+    theta = theta + flag*twoPI*(int)(theta_abs/twoPI); //Translate to the unit circle
+    
+    //Check where we are in the unit circle
+    if(theta_abs < pi4){//Regular sine
+          double x1  = theta;
+          double x2  = x1 * x1;
+          double x3  = x1 * x2;
+          double x5  = x3 * x2;
+          double x7  = x5 * x2;
+          double x9  = x7 * x2;
+          double x11 = x9 * x2;
+
+          double s = x1;
+          s += x3  * c3;
+          s += x5  * c5;
+          s += x7  * c7;
+          s += x9  * c9;
+          s += x11 * c11;
+          sinx[i] = flag*s;
+    }
+    else if(theta < pi34){
+      //Call consine
+    }else if(theta_abs < pi54){ //Minus sine
+          double x1  = theta - M_PI;
+          double x2  = x1 * x1;
+          double x3  = x1 * x2;
+          double x5  = x3 * x2;
+          double x7  = x5 * x2;
+          double x9  = x7 * x2;
+          double x11 = x9 * x2;
+
+          double s = x1;
+          s += x3  * c3;
+          s += x5  * c5;
+          s += x7  * c7;
+          s += x9  * c9;
+          s += x11 * c11;
+          sinx[i] = -1.0*flag*s;
+    }
+      else{//Minus cosine
+
+      }
   }
 }
 
@@ -120,7 +179,6 @@ double err(double* x, double* y, long N) {
 
 int main() {
 
-
   Timer tt;
   long N = 1000000;
   double* x = (double*) aligned_malloc(N*sizeof(double));
@@ -128,6 +186,7 @@ int main() {
   double* sinx_taylor = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_intrin = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_vector = (double*) aligned_malloc(N*sizeof(double));
+  double* sinx_tayEC = (double*) aligned_malloc(N*sizeof(double)); //Taylor extra credit
   for (long i = 0; i < N; i++) {
     x[i] = (drand48()-0.5) * M_PI/2; // [-pi/4,pi/4]
     sinx_ref[i] = 0;
@@ -167,6 +226,14 @@ int main() {
     }
   }
   printf("Vector time:    %6.4f      Error: %e\n", tt.toc(), err(sinx_ref, sinx_vector, N));
+
+  tt.tic();
+  for (long rep = 0; rep < 1000; rep++) {
+    for (long i = 0; i < N; i+=4) {
+      sin4_taylorEC(sinx_tayEC+i, x+i);
+    }
+  }
+  printf("Taylor EC time:    %6.4f      Error: %e\n", tt.toc(), err(sinx_ref, sinx_tayEC, N));
 
   aligned_free(x);
   aligned_free(sinx_ref);
