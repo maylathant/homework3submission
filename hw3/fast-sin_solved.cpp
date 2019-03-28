@@ -117,41 +117,6 @@ void sin4_taylorEC(double* sinx, const double* x) {
   }//End for
 }
 
-void sin4_taylorECOLD(double* sinx, const double* x) {
-  int flag =1;
-  double theta, theta_abs;
-  for (int i = 0; i < 4; i++) {
-    theta = x[i]; theta_abs = abs(theta);
-    if(theta < 0){flag = -1;} //Determine if positive or negitive
-    theta = theta + flag*twoPI*(int)(theta_abs/twoPI); //Translate to the unit circle
-    
-    bool q1,q2,q3; //To identify the quadrent of the unit circle
-    q1 = theta_abs < pi4; q2 = theta_abs < pi34; q3 = theta_abs < pi54;
-
-    //Check where we are in the unit circle
-    if(q1 || (q3 && !q2)){//Condition to evaluate sine
-          double x1  = theta;
-          if(!q1){x1 = theta - flag*M_PI;} //Translate to +-pi/4
-          double x2  = x1 * x1;
-          double x3  = x1 * x2;
-          double x5  = x3 * x2;
-          double x7  = x5 * x2;
-          double x9  = x7 * x2;
-          double x11 = x9 * x2;
-
-          double s = x1;
-          s += x3  * c3;
-          s += x5  * c5;
-          s += x7  * c7;
-          s += x9  * c9;
-          s += x11 * c11;
-          sinx[i] = s;
-    }
-    else{//Evaluate Cosine
-
-  }
-  }//End for
-}
 
 void sin4_intrin(double* sinx, const double* x) {
   // The definition of intrinsic functions can be found at:
@@ -205,6 +170,42 @@ void sin4_intrin(double* sinx, const double* x) {
 #endif
 }
 
+void sin4_intrinEC(double* sinx, const double* x) {
+  // The definition of intrinsic functions can be found at:
+  // https://software.intel.com/sites/landingpage/IntrinsicsGuide/#
+  #if defined(__SSE2__)
+
+  constexpr int sse_length = 2;
+  for (int i = 0; i < 2; i+=sse_length) {
+    __m128d x1, x2, x3;
+    x1  = _mm_load_pd(x+i);
+    x2  = _mm_mul_pd(x1, x1);
+    x3  = _mm_mul_pd(x1, x2);
+
+    __m128d x5, x7, x9, x11;
+    x5 = _mm_mul_pd(x2,x3); //Anthony Maylath edit ~ compute higher order terms
+    x7 = _mm_mul_pd(x2,x5);
+    x9 = _mm_mul_pd(x2,x7);
+    x11 = _mm_mul_pd(x2,x9);
+
+    __m128 s = x1;
+    s = _mm_add_pd(s, _mm_mul_pd(x3 , _mm_set1_pd(c3 )));
+    s = _mm_add_pd(s, _mm_mul_pd(x5 , _mm_set1_pd(c5 ))); //Anthony Maylath edit ~ add higher order terms
+    s = _mm_add_pd(s, _mm_mul_pd(x7 , _mm_set1_pd(c7 )));
+    s = _mm_add_pd(s, _mm_mul_pd(x9 , _mm_set1_pd(c9 )));
+    s = _mm_add_pd(s, _mm_mul_pd(x11 , _mm_set1_pd(c11 )));
+    _mm_store_pd(sinx+i, s);
+  }
+
+  for(int i = 2; i < 4; i++){//Use symmetry ~ take negation
+    sinx[i] = -1*sinx[i-2];
+  }
+
+#else
+  sin4_referenceEC(sinx, x);
+#endif
+}
+
 void sin4_vector(double* sinx, const double* x) {
   // The Vec class is defined in the file intrin-wrapper.h
   typedef Vec<double,4> Vec4;
@@ -229,12 +230,15 @@ int main() {
   Timer tt;
   long N = 1000000;
   double* x = (double*) aligned_malloc(N*sizeof(double));
+  double* x_sh = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_ref = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_taylor = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_intrin = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_vector = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_refEC = (double*) aligned_malloc(N*sizeof(double));
   double* sinx_tayEC = (double*) aligned_malloc(N*sizeof(double)); //Taylor extra credit
+  double* sinx_intrinEC = (double*) aligned_malloc(N*sizeof(double)); //Intrin extra credit
+
   for (long i = 0; i < N; i++) {
     x[i] = (drand48()-0.5) * M_PI/2; // [-pi/4,pi/4]
     sinx_ref[i] = 0;
@@ -243,6 +247,12 @@ int main() {
     sinx_vector[i] = 0;
     sinx_refEC[i] = 0;
     sinx_tayEC[i] = 0;
+  }
+
+  for(long i = 0; i < N; i+=4){ //Shifted values for extra credit
+    for(long j = 0; j < 4; j++){
+      x_sh[i+j] = x[i] + j*M_PI/2;
+    }
   }
 
   tt.tic();
@@ -292,9 +302,20 @@ int main() {
   }
   printf("Taylor EC time:    %6.4f      Error: %e\n", tt.toc(), err(sinx_refEC, sinx_tayEC, N));
 
-  for(int i = 0; i < 4; i++)
-    printf("EC Ref %f EC Tay %f x = %f\n", sinx_refEC[i],sinx_tayEC[i],x[0]+i*M_PI/2);
+  // for(int i = 0; i < N; i++)
+  //   printf("EC Ref %f EC Tay %f x = %f\n", sinx_refEC[i],sinx_tayEC[i],x[0]+i*M_PI/2);
 
+
+  tt.tic();
+  for (long rep = 0; rep < 1000; rep++) {
+    for (long i = 0; i < N; i+=4) {
+      sin4_intrinEC(sinx_intrinEC+i, x_sh+i);
+    }
+  }
+  printf("Intrin EC time:    %6.4f      Error: %e\n", tt.toc(), err(sinx_refEC, sinx_intrinEC, N));
+
+  // for(int i = 0; i < N; i++)
+  //   printf("EC Ref %f EC Intrin %f x = %f Error = %e\n", sinx_refEC[i],sinx_intrinEC[i],x[0]+i*M_PI/2,sinx_intrinEC[i]-sinx_refEC[i]);
 
   aligned_free(x);
   aligned_free(sinx_ref);
@@ -303,5 +324,6 @@ int main() {
   aligned_free(sinx_vector);
   aligned_free(sinx_tayEC);
   aligned_free(sinx_refEC);
+  aligned_free(sinx_intrinEC);
 }
 

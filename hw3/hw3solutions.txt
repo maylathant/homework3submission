@@ -23,7 +23,15 @@ Extra Credit
 The value of sine will be the imaginary part of e^{i\theta}. Hence, we can translate
 from [-\pi/4,\pi/4] by taking cosine, -sine, and minus cosine to get regions [\pi/4,3\pi/4], [3\pi/4,5\pi/4], and [5\pi/4,7\pi/4] respectively. 
 
-Any point on the real line can be translated to these regions. For points out of [0,2\pi] translate the point by taking \theta^* = \theta - \2*pi*floor(\theta/(2*\pi)) for positive numbers and a similar transformation for negative numbers.
+I take the approach of evaluating sin(\theta + i*\pi/4) for i = 0,1,2,3 to obtain points in the other intervals of the unit circle. With this method to evaluate sine anywhere on the unit circle, we can value sine at any point on the real line by translation.
+
+Note that I ignore the initial values of x[i] for i not divisible by 4. These values are filled by sin(\theta + i*\pi/4) for i = 1,2,3.
+
+The functions sin4_taylorEC and sin4_intrinEC compute the taylor and vector approximations to sine using symmetry. sin4_taylorEC obtains four sine values with one cosine evaluation and one sine evaluation. The remaining two values are obtained via symmetry. sin4_intrinEC computes sin(\theta + i*\pi/4) for i = 0,1 with SSE2 intrinsics then uses symmetry to obtain sin(\theta + i*\pi/4) for i = 2,3. 
+
+sin4_referenceEC(\theta) computes sin(\theta + i*\pi/4) for i = 0,1,2,3 with the built in sin() function and is used to verify accuracy.
+
+sin4_taylorEC performs a bit faster than sin4_taylor at 1.5849 seconds vs. 2.0185 seconds for N = 1000000. sin4_intrinEC has a similar speed up. The worst error; however, increases to 10^-10 and 10^-5 respectively. These errors occur even when we take O(x^11) in the taylor series.
 
 #########################################################################
 
